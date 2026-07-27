@@ -1,21 +1,21 @@
-# 這份檔案用來抓取日本TSE交易所所有ETF代碼
+# This file fetches all Japanese TSE exchange ETF symbols
 
 import io
 
 import pdfplumber
 import requests
 
-# JPX官方ETF清單PDF網址
+# Official JPX ETF list PDF URL
 JPX_ETF_PDF_URL = (
     "https://www.jpx.co.jp/english/equities/products/etfs/tvdivq000001j45s-att/b5b4pj000002nyru.pdf"
 )
 
-# 偽裝瀏覽器的User-Agent，避免被拒絕
+# Spoofed browser User-Agent, to avoid being rejected
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
 
 def get_jp_etf_symbols() -> list[str]:
-    """回傳日本TSE交易所所有ETF代碼的清單（yfinance使用的.T後綴格式）。"""
+    """Return the list of all ETF symbols on the Japanese TSE exchange (in the .T suffix format used by yfinance)."""
     try:
         response = requests.get(JPX_ETF_PDF_URL, headers=HEADERS, timeout=30)
         response.raise_for_status()
@@ -48,7 +48,7 @@ def get_jp_etf_symbols() -> list[str]:
 
                         code = code.strip()
 
-                        # 排除空字串、含空白、以及表格標題列本身（"Code"）
+                        # Exclude empty strings, strings containing whitespace, and the table header row itself ("Code")
                         if not code or " " in code or code == "Code":
                             continue
 
@@ -59,5 +59,5 @@ def get_jp_etf_symbols() -> list[str]:
 
     symbols = [f"{code}.T" for code in codes]
 
-    # 去除重複，同時保留原始順序
+    # Remove duplicates while preserving original order
     return list(dict.fromkeys(symbols))

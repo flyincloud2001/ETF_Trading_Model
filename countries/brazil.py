@@ -1,4 +1,4 @@
-# 這份檔案用來抓取巴西B3交易所所有ETF代碼
+# This file fetches all Brazilian B3 exchange ETF symbols
 
 import base64
 import json
@@ -6,16 +6,16 @@ import json
 import pandas as pd
 import requests
 
-# B3官方內部API的基本查詢參數
+# Basic query parameters for the official B3 internal API
 B3_API_PARAMS = {"language": "pt-br", "pageNumber": 1, "pageSize": 500, "typeFund": "ETF"}
 
-# B3備援頁面網址（官方API失敗時使用）
+# B3 fallback page URL (used when the official API fails)
 B3_FALLBACK_URL = "https://sistemaswebb3-listados.b3.com.br/fundsListedPage/ETF"
 
-# 偽裝瀏覽器的User-Agent，避免被拒絕
+# Spoofed browser User-Agent, to avoid being rejected
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-# 名稱必須排除的關鍵字（槓桿、反向ETF）。葡萄牙文關鍵字需保留原文才能比對葡萄牙文基金名稱
+# Keywords that must be excluded from the name (leveraged, inverse ETFs). The Portuguese keywords must be kept as-is to match Portuguese fund names
 EXCLUDED_NAME_KEYWORDS = (
     "ALAVANCADO",
     "INVERSO",
@@ -27,14 +27,14 @@ EXCLUDED_NAME_KEYWORDS = (
     "3X",
 )
 
-# 可能包含ticker代碼的欄位名稱關鍵字（備援表格解析用）
+# Column name keywords that may indicate a ticker code column (used for fallback table parsing)
 TICKER_COLUMN_KEYWORDS = ("TICKER", "CODE", "CODIGO", "SYMBOL")
-# 可能包含基金名稱的欄位名稱關鍵字
+# Column name keywords that may indicate a fund name column
 NAME_COLUMN_KEYWORDS = ("NAME", "NOME")
 
 
 def _name_is_excluded(name) -> bool:
-    """判斷名稱是否含有槓桿、反向等應排除的關鍵字。"""
+    """Determine whether the name contains a keyword that should be excluded, such as leveraged or inverse."""
     if name is None or (isinstance(name, float) and pd.isna(name)):
         return False
     name_upper = str(name).upper()
@@ -42,7 +42,7 @@ def _name_is_excluded(name) -> bool:
 
 
 def _fetch_from_b3_api() -> list[str]:
-    """呼叫B3官方內部API，取得ETF清單並解析出代碼。"""
+    """Call the official B3 internal API to get the ETF list and parse out the symbols."""
     encoded = base64.b64encode(json.dumps(B3_API_PARAMS).encode()).decode()
     url = f"https://sistemaswebb3-listados.b3.com.br/fundsProxy/fundsCall/GetListedFundsSummaryByTypeFunds/{encoded}"
 
@@ -61,7 +61,7 @@ def _fetch_from_b3_api() -> list[str]:
 
         ticker = str(ticker).strip()
 
-        # 動態找出名稱欄位，用來過濾槓桿、反向ETF
+        # Dynamically locate the name column, to filter out leveraged and inverse ETFs
         name_key = next(
             (key for key in result.keys() if any(keyword in key.upper() for keyword in NAME_COLUMN_KEYWORDS)),
             None,
@@ -75,7 +75,7 @@ def _fetch_from_b3_api() -> list[str]:
 
 
 def _fetch_from_fallback_page() -> list[str]:
-    """B3官方API失敗時，改用備援頁面的表格解析。"""
+    """When the official B3 API fails, fall back to parsing the tables on the fallback page."""
     response = requests.get(B3_FALLBACK_URL, headers=HEADERS, timeout=30)
     response.raise_for_status()
 
@@ -116,7 +116,7 @@ def _fetch_from_fallback_page() -> list[str]:
 
 
 def get_br_etf_symbols() -> list[str]:
-    """回傳巴西B3交易所所有ETF代碼的清單（yfinance使用的.SA後綴格式）。"""
+    """Return the list of all ETF symbols on the Brazilian B3 exchange (in the .SA suffix format used by yfinance)."""
     try:
         symbols = _fetch_from_b3_api()
         if symbols:

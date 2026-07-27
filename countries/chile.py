@@ -1,4 +1,4 @@
-# 這份檔案用來抓取智利Bolsa de Santiago所有ETF代碼
+# This file fetches all Chilean Bolsa de Santiago exchange ETF symbols
 
 import time
 
@@ -6,29 +6,29 @@ import pandas as pd
 import requests
 import yfinance as yf
 
-# stockanalysis.com上智利ETF清單頁面網址
+# stockanalysis.com page URL listing Chilean ETFs
 STOCKANALYSIS_URL = "https://stockanalysis.com/list/chilean-etfs/"
 
-# Wikipedia備援頁面網址（stockanalysis.com失敗時使用）
+# Wikipedia fallback page URL (used when stockanalysis.com fails)
 WIKI_FALLBACK_URL = "https://en.wikipedia.org/wiki/List_of_Chilean_exchange-traded_funds"
 
-# 偽裝瀏覽器的User-Agent，避免被拒絕
+# Spoofed browser User-Agent, to avoid being rejected
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-# 名稱必須排除的關鍵字（槓桿、反向ETF）
+# Keywords that must be excluded from the name (leveraged, inverse ETFs)
 EXCLUDED_NAME_KEYWORDS = ("INVERSE", "LEVERAGED", "BEAR", "SHORT", "2X", "3X")
 
-# 可能包含代碼的欄位名稱關鍵字
+# Column name keywords that may indicate a code column
 CODE_COLUMN_KEYWORDS = ("SYMBOL", "TICKER", "CODE")
-# 可能包含名稱的欄位名稱關鍵字
+# Column name keywords that may indicate a name column
 NAME_COLUMN_KEYWORDS = ("NAME",)
 
-# 每次用yfinance驗證代碼之間的等待秒數
+# Wait time in seconds between each yfinance symbol verification
 VERIFY_DELAY_SECONDS = 0.3
 
 
 def _find_column(keys, keywords):
-    """依關鍵字動態找出對應的欄位名稱，找不到則回傳None。"""
+    """Dynamically locate the matching column name from the keywords; return None if not found."""
     for key in keys:
         key_upper = str(key).upper()
         if any(keyword in key_upper for keyword in keywords):
@@ -37,18 +37,18 @@ def _find_column(keys, keywords):
 
 
 def _name_is_excluded(name) -> bool:
-    """判斷名稱是否含有槓桿、反向等應排除的關鍵字。"""
+    """Determine whether the name contains a keyword that should be excluded, such as leveraged or inverse."""
     if name is None or (isinstance(name, float) and pd.isna(name)):
         return False
     return any(keyword in str(name).upper() for keyword in EXCLUDED_NAME_KEYWORDS)
 
 
 def _extract_codes_from_tables(tables) -> list[str]:
-    """從HTML表格中動態找出代碼與名稱欄位，取出候選代碼。"""
+    """Dynamically locate the code and name columns in the HTML tables and extract candidate codes."""
     codes = []
     for table in tables:
         columns = [str(col) for col in table.columns]
-        # 印出找到的表格欄位名稱以便除錯
+        # Print the found table column names for debugging
         print(f"Found table columns: {columns}")
 
         code_column = _find_column(columns, CODE_COLUMN_KEYWORDS)
@@ -76,7 +76,7 @@ def _extract_codes_from_tables(tables) -> list[str]:
 
 
 def _fetch_from_stockanalysis() -> list[str]:
-    """第一步：從stockanalysis.com解析智利ETF清單。"""
+    """Step 1: parse the Chilean ETF list from stockanalysis.com."""
     response = requests.get(STOCKANALYSIS_URL, headers=HEADERS, timeout=30)
     response.raise_for_status()
 
@@ -85,7 +85,7 @@ def _fetch_from_stockanalysis() -> list[str]:
 
 
 def _fetch_from_wikipedia() -> list[str]:
-    """第二步：stockanalysis.com失敗時，改用Wikipedia備援。"""
+    """Step 2: when stockanalysis.com fails, fall back to Wikipedia."""
     response = requests.get(WIKI_FALLBACK_URL, headers=HEADERS, timeout=30)
     response.raise_for_status()
 
@@ -94,7 +94,7 @@ def _fetch_from_wikipedia() -> list[str]:
 
 
 def _verify_and_build_symbols(codes) -> list[str]:
-    """把代碼加上.SN後綴，並逐一用yfinance驗證是否為有效ETF。"""
+    """Append the .SN suffix to each code and verify each one individually as a valid ETF via yfinance."""
     symbols = []
     for code in codes:
         symbol = f"{code}.SN"
@@ -112,7 +112,7 @@ def _verify_and_build_symbols(codes) -> list[str]:
 
 
 def get_cl_etf_symbols() -> list[str]:
-    """回傳智利Bolsa de Santiago所有ETF代碼的清單（yfinance使用的.SN後綴格式）。"""
+    """Return the list of all ETF symbols on the Chilean Bolsa de Santiago exchange (in the .SN suffix format used by yfinance)."""
     try:
         codes = _fetch_from_stockanalysis()
 

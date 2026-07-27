@@ -1,15 +1,15 @@
-# 這份檔案用來抓取波蘭GPW交易所所有ETF代碼
+# This file fetches all Polish GPW exchange ETF symbols
 
 import pandas as pd
 import requests
 
-# GPW官方ETF全覽頁面網址
+# Official GPW ETF full-view page URL
 GPW_ETF_LIST_URL = "https://www.gpw.pl/etfs-full-view"
 
-# 偽裝瀏覽器的User-Agent，避免被拒絕
+# Spoofed browser User-Agent, to avoid being rejected
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-# GPW官網解析失敗時使用的靜態備援代碼清單
+# Static fallback ticker list used when the official GPW site parsing fails
 STATIC_FALLBACK_TICKERS = (
     "ETFBCASH",
     "ETFBDIVPL",
@@ -26,25 +26,25 @@ STATIC_FALLBACK_TICKERS = (
     "ETFSP500",
 )
 
-# 波蘭文小計列的代碼值，需排除
+# Code value for the Polish-language subtotal row, which must be excluded
 SUBTOTAL_ROW_VALUE = "RAZEM"
 
-# 代碼結尾必須排除的後綴（2倍放空、3倍槓桿、2倍槓桿）
+# Suffixes that must be excluded from the end of a code (2x short, 3x leveraged, 2x leveraged)
 EXCLUDED_SUFFIXES = ("2ST", "3LV", "2LV")
 
-# 代碼中含有這些關鍵字也必須排除（反向、放空ETF）
+# Codes containing these keywords must also be excluded (inverse, short ETFs)
 EXCLUDED_KEYWORDS = ("INVERSE", "SHORT")
 
 
 def _is_excluded(code: str) -> bool:
-    """判斷代碼是否為應排除的槓桿、反向、放空ETF。"""
+    """Determine whether a code is a leveraged, inverse, or short ETF that should be excluded."""
     if code.endswith(EXCLUDED_SUFFIXES):
         return True
     return any(keyword in code for keyword in EXCLUDED_KEYWORDS)
 
 
 def _apply_filter(tickers) -> list[str]:
-    """套用清理、排除小計列、排除槓桿反向關鍵字，並加上.WA後綴。"""
+    """Apply cleanup, exclude the subtotal row, exclude leveraged/inverse keywords, and append the .WA suffix."""
     symbols = []
     for ticker in tickers:
         if ticker is None or (isinstance(ticker, float) and pd.isna(ticker)):
@@ -64,7 +64,7 @@ def _apply_filter(tickers) -> list[str]:
 
 
 def _fetch_from_gpw() -> list[str]:
-    """從GPW官方ETF全覽頁面解析出"Instrument"欄位的所有代碼。"""
+    """Parse all codes from the "Instrument" column on the official GPW ETF full-view page."""
     response = requests.get(GPW_ETF_LIST_URL, headers=HEADERS, timeout=30)
     response.raise_for_status()
 
@@ -77,7 +77,7 @@ def _fetch_from_gpw() -> list[str]:
         if not any("Instrument" in col for col in columns):
             continue
 
-        # 印出找到的表格欄位名稱以便除錯
+        # Print the found table column names for debugging
         print(f"Found table columns: {columns}")
 
         instrument_column = next(col for col in table.columns if "Instrument" in str(col))
@@ -87,7 +87,7 @@ def _fetch_from_gpw() -> list[str]:
 
 
 def get_pl_etf_symbols() -> list[str]:
-    """回傳波蘭GPW交易所所有ETF代碼的清單（yfinance使用的.WA後綴格式）。"""
+    """Return the list of all ETF symbols on the Polish GPW exchange (in the .WA suffix format used by yfinance)."""
     try:
         tickers = _fetch_from_gpw()
         symbols = _apply_filter(tickers)

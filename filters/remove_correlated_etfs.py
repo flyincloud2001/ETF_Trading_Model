@@ -1,20 +1,20 @@
-# 有一些不同的ETF可能追蹤的是相同的股票，或是有相同的走勢，這份檔案專門篩選出走勢相同的股票，並取其中市值最大(或其他合理的標準)的一個最為代表
+# Some different ETFs may track the same stocks, or move in the same way. This file specifically filters out ETFs that move the same way, keeping only the one with the largest market cap (or another reasonable standard) as the representative
 
 import itertools
 
 import pandas as pd
 import yfinance as yf
 
-# 相關係數門檻，超過此值視為同走勢
+# Correlation coefficient threshold; above this value the ETFs are considered to move the same way
 CORRELATION_THRESHOLD = 0.95
 
 
 def remove_correlated_etfs(symbols: list[str]) -> list[str]:
-    """輸入一組ETF代碼清單，回傳排除同走勢後的清單。"""
+    """Take a list of ETF symbols and return the subset with same-moving ETFs removed."""
     if len(symbols) < 2:
         return list(symbols)
 
-    # 一次性抓取所有ETF過去3年的收盤價
+    # Fetch the past 3 years of close prices for all ETFs in one batch
     try:
         raw = yf.download(
             symbols,
@@ -23,10 +23,10 @@ def remove_correlated_etfs(symbols: list[str]) -> list[str]:
             group_by="ticker",
         )
     except Exception:
-        # 整批抓取失敗，所有symbol視為保留
+        # If the batch fetch fails, keep all symbols
         return list(symbols)
 
-    # 整理出每支ETF的收盤價，單一symbol抓取失敗時直接保留、不參與相關性比對
+    # Build the close-price series for each ETF; if a single symbol fails to fetch, keep it as-is and exclude it from correlation comparison
     close_prices = {}
     for symbol in symbols:
         try:
@@ -43,12 +43,12 @@ def remove_correlated_etfs(symbols: list[str]) -> list[str]:
     price_df = pd.DataFrame(close_prices)
     returns_df = price_df.pct_change()
 
-    # 計算所有ETF兩兩之間的Pearson相關係數矩陣
+    # Calculate the pairwise Pearson correlation matrix across all ETFs
     corr_matrix = returns_df.corr(method="pearson")
 
     valid_symbols = list(close_prices.keys())
 
-    # 找出所有相關性超過門檻的配對，並依相關係數由高到低排序，供貪婪演算法依序處理
+    # Find all pairs whose correlation exceeds the threshold, and sort by correlation coefficient from high to low, for the greedy algorithm to process in order
     pairs = []
     for sym_a, sym_b in itertools.combinations(valid_symbols, 2):
         corr_value = corr_matrix.loc[sym_a, sym_b]
@@ -59,7 +59,7 @@ def remove_correlated_etfs(symbols: list[str]) -> list[str]:
     total_assets_cache = {}
 
     def get_total_assets(symbol):
-        # 查詢並快取totalAssets，避免同一symbol重複查詢
+        # Look up and cache totalAssets, to avoid looking up the same symbol repeatedly
         if symbol not in total_assets_cache:
             try:
                 total_assets_cache[symbol] = yf.Ticker(symbol).info.get("totalAssets")
@@ -69,7 +69,7 @@ def remove_correlated_etfs(symbols: list[str]) -> list[str]:
 
     excluded = set()
 
-    # 貪婪演算法：從相關性最高的配對開始處理，已被排除的symbol不再參與後續比對
+    # Greedy algorithm: process pairs starting from the highest correlation; symbols already excluded no longer participate in subsequent comparisons
     for _corr_value, sym_a, sym_b in pairs:
         if sym_a in excluded or sym_b in excluded:
             continue
@@ -78,7 +78,7 @@ def remove_correlated_etfs(symbols: list[str]) -> list[str]:
         assets_b = get_total_assets(sym_b)
 
         if assets_a is not None and assets_b is not None:
-            # 保留totalAssets較大的那支
+            # Keep the one with the larger totalAssets
             if assets_a >= assets_b:
                 excluded.add(sym_b)
             else:
@@ -88,11 +88,11 @@ def remove_correlated_etfs(symbols: list[str]) -> list[str]:
         elif assets_b is not None:
             excluded.add(sym_a)
         else:
-            # 兩支都查不到totalAssets，保留代碼字母順序較前的那支
+            # Neither has a totalAssets value; keep the one whose symbol comes first alphabetically
             if sym_a < sym_b:
                 excluded.add(sym_b)
             else:
                 excluded.add(sym_a)
 
-    # 依原始輸入順序回傳，排除清單中已被淘汰的symbol
+    # Return in the original input order, with symbols in the excluded set removed
     return [symbol for symbol in symbols if symbol not in excluded]

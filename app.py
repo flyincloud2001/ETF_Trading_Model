@@ -1,4 +1,4 @@
-# 這份檔案將把"Algorithmic ETF Trading\data\ranked_good_universe.csv"中的ETF製作成Streamlit介面
+# This file turns the ETFs in "ETF_Trading_Model\data\ranked_good_universe.csv" into a Streamlit interface
 
 import streamlit as st
 import pandas as pd
@@ -11,7 +11,7 @@ import glob
 
 from trading_logic.timezone_utils import get_now_in_eastern, is_market_open, is_premarket
 
-# ========== 參數設定 ==========
+# ========== Parameter settings ==========
 DATA_DIR = "data"
 TOP_N_DAILY = 20
 REQUEST_DELAY = 0.2
@@ -23,7 +23,7 @@ st.set_page_config(page_title="ETF Rebound Selection Model", layout="wide")
 
 
 def _format_bin_range(lower: float, upper: float) -> str:
-    """把區間邊界格式化成方便顯示的文字，無限邊界顯示為∞。"""
+    """Format the bin boundaries into a display-friendly string; infinite boundaries are shown as the infinity symbol (∞)."""
     lower_str = "-∞" if np.isinf(lower) else f"{lower:.1f}"
     upper_str = "∞" if np.isinf(upper) else f"{upper:.1f}"
     return f"[{lower_str}, {upper_str})"
@@ -31,13 +31,13 @@ def _format_bin_range(lower: float, upper: float) -> str:
 
 def _fetch_yesterday_status(row):
     """
-    對一支ETF抓最近10天資料，算出昨天收盤對昨天開盤的漲跌幅百分比，
-    並計算跟這支ETF最佳區間中點的距離。
-    回傳(dict, None)代表成功，或(None, 錯誤原因字串)代表失敗。
+    Fetch the most recent 10 days of data for one ETF, compute yesterday's close-vs-open
+    percentage return, and calculate the distance from this ETF's best-bin midpoint.
+    Returns (dict, None) on success, or (None, error reason string) on failure.
     """
     symbol = row["symbol"]
 
-    # 抓資料失敗時重試最多MAX_RETRIES次，每次重試中間多等一點時間
+    # Retry up to MAX_RETRIES times when fetching data fails, waiting a bit longer between each retry
     hist = None
     last_error = "Unknown error"
     for attempt in range(MAX_RETRIES):
@@ -56,20 +56,21 @@ def _fetch_yesterday_status(row):
     if hist is None or hist.empty:
         return None, last_error
 
-    # 有時候Yahoo在美股開盤前這個時間點，最新一天的資料還沒處理完成，Open和Close會是NaN
-    # 先把這種缺值的列濾掉，剩下的才是真正可以用的完整交易日資料
+    # Sometimes, at this point before the US market opens, Yahoo hasn't finished processing
+    # the latest day's data yet, so Open and Close will be NaN.
+    # Filter out these rows with missing values first; what remains is genuinely usable complete trading-day data
     valid_hist = hist.dropna(subset=["Open", "Close"])
 
     if len(valid_hist) < 1:
         return None, "Recent data is all missing; Yahoo data may not be updated yet, try again later"
 
-    # hist.index是用美東時間標記的，不能拿本地系統時間去比對
-    # 用valid_hist.index[-1]自己帶的時區資訊，換算出"現在"在美東時間是幾點幾號
+    # hist.index is timestamped in Eastern Time, so we can't compare it against local system time.
+    # Use the timezone info carried by valid_hist.index[-1] itself to work out what "now" is in Eastern Time
     now_in_market_tz = pd.Timestamp.now(tz=valid_hist.index[-1].tz)
     last_valid_date = valid_hist.index[-1].date()
     today_date_in_market_tz = now_in_market_tz.date()
 
-    # 只比較日期還不夠，若已經過了美東下午4點收盤時間，這一天的資料其實已經完整
+    # Comparing dates alone isn't enough; if it's already past the 4pm Eastern market close, that day's data is actually complete
     market_close_time = now_in_market_tz.replace(hour=16, minute=0, second=0, microsecond=0)
     last_row_still_in_progress = (
         last_valid_date == today_date_in_market_tz and now_in_market_tz < market_close_time
@@ -89,15 +90,15 @@ def _fetch_yesterday_status(row):
     if yesterday_open == 0 or pd.isna(yesterday_open) or pd.isna(yesterday_close):
         return None, "Yesterday's open or close price is 0 or missing"
 
-    # 昨日收盤對昨日開盤的報酬率，轉換為百分比形式（例如1.02變成2.0）
+    # Yesterday's close-vs-open return, converted to percentage form (e.g. 1.02 becomes 2.0)
     yesterday_return = yesterday_close / yesterday_open
     yesterday_return_pct = yesterday_return * 100 - 100
 
-    # x、y直接取自ranked_good_universe.csv，代表這支ETF歷史上最佳區間的統計數據
+    # x and y are taken directly from ranked_good_universe.csv, representing this ETF's historical best-bin statistics
     x = row["x"]
     y = row["y"]
 
-    # 這支ETF最佳區間的中點；首尾兩個區間邊界是無限，退回用有限的那一端當作參考點
+    # The midpoint of this ETF's best bin; when the first or last bin boundary is infinite, fall back to using the finite end as the reference point
     bin_lower = row["best_bin_lower"]
     bin_upper = row["best_bin_upper"]
     if np.isinf(bin_lower):
@@ -124,7 +125,7 @@ def _fetch_yesterday_status(row):
 
 
 def _run_daily_analysis(ranked_df: pd.DataFrame, log_placeholder, progress_bar) -> pd.DataFrame:
-    """對ranked_df裡的每支ETF呼叫_fetch_yesterday_status，過程中更新進度條和文字紀錄。"""
+    """Call _fetch_yesterday_status for every ETF in ranked_df, updating the progress bar and text log along the way."""
     records = []
     total = len(ranked_df)
     logs = []
@@ -148,7 +149,7 @@ def _run_daily_analysis(ranked_df: pd.DataFrame, log_placeholder, progress_bar) 
 
 
 def _plot_daily_results(top_df: pd.DataFrame):
-    """畫出今日候選ETF昨日漲跌幅的長條圖，每根bar旁邊標示該ETF的最佳區間範圍。"""
+    """Plot a bar chart of yesterday's return for today's candidate ETFs, labeling each bar with that ETF's best-bin range."""
     fig, ax = plt.subplots(figsize=(14, 5))
     x_pos = np.arange(len(top_df))
 
@@ -185,7 +186,7 @@ def main():
 
     tab1, tab2 = st.tabs(["Candidate ETF Overview", "Daily Analysis"])
 
-    # ---- 分頁一：候選ETF總覽 ----
+    # ---- Tab 1: Candidate ETF Overview ----
     with tab1:
         st.subheader(f"Candidate ETF Pool — {len(ranked_df)} total")
         st.caption(f"Loaded from {RANKED_PATH}")
@@ -208,7 +209,7 @@ def main():
                     use_container_width=True,
                 )
 
-    # ---- 分頁二：每日分析 ----
+    # ---- Tab 2: Daily Analysis ----
     with tab2:
         st.subheader("Run Daily Analysis")
 
@@ -235,17 +236,17 @@ def main():
 
             st.success(f"Analysis complete — successfully retrieved data for {len(result_df)} ETFs")
 
-            # 完整結果存檔，檔名包含日期，每天執行都會留下一份紀錄
+            # Save the full results to a file whose name includes the date, so each day's run leaves a record
             os.makedirs(DATA_DIR, exist_ok=True)
             snapshot_date = get_now_in_eastern().strftime("%Y-%m-%d")
             snapshot_path = os.path.join(DATA_DIR, f"snapshot_{snapshot_date}.csv")
             result_df.to_csv(snapshot_path, index=False)
             st.write(f"Full results saved to {snapshot_path}")
 
-            # 只保留昨日下跌（yesterday_return_pct小於0）的ETF
+            # Keep only ETFs that fell yesterday (yesterday_return_pct less than 0)
             down_only_df = result_df[result_df["yesterday_return_pct"] < 0].copy()
 
-            # 依距離由小到大排序，取前TOP_N_DAILY名，再依原始排名重新排序並標記今日名次
+            # Sort by distance ascending, take the top TOP_N_DAILY, then re-sort by original rank and mark today's rank
             top_df = down_only_df.sort_values("distance").head(TOP_N_DAILY).copy()
             top_df = top_df.sort_values("original_rank").reset_index(drop=True)
             top_df["today_rank"] = top_df.index + 1

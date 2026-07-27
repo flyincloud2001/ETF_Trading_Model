@@ -1,1 +1,1 @@
-這個資料夾內的檔案專門針對抓取各國股票制定篩選規則，包含交易所選擇、ETF名稱判斷、ETF清單來源等等
+The files in this folder define country-specific ETF filtering rules, including exchange selection, ETF name identification, ETF listing sources, and so on.

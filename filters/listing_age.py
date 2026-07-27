@@ -1,24 +1,24 @@
-# 篩選出上市至少15年的ETF
+# Filter for ETFs that have been listed for at least 15 years
 
 from datetime import datetime, timezone
 
 import yfinance as yf
 
-# 最低上市年數門檻
+# Minimum listing age threshold, in years
 MIN_LISTING_YEARS = 15
-# 一年的平均天數（含閏年）
+# Average number of days per year (accounting for leap years)
 DAYS_PER_YEAR = 365.25
 
 
 def passes_listing_age(symbol: str) -> bool:
-    """判斷單一ETF是否上市滿15年。"""
+    """Determine whether a single ETF has been listed for at least 15 years."""
     try:
         hist = yf.Ticker(symbol).history(period="max", auto_adjust=True)
 
         if hist is None or hist.empty:
             return False
 
-        # 歷史資料最早一筆的日期視為上市日期
+        # Treat the date of the earliest historical row as the listing date
         listing_date = hist.index[0]
         if listing_date.tzinfo is not None:
             now = datetime.now(timezone.utc).astimezone(listing_date.tzinfo)

@@ -1,22 +1,22 @@
-# 時區處理(美東時間 vs 台灣時間)
+# Timezone handling (US Eastern time vs. Taiwan time)
 
 import pandas as pd
 
-# 盤中交易時段的起訖時間（美東時間）
+# Start and end times of the regular trading session (US Eastern time)
 MARKET_OPEN_TIME = pd.Timestamp("09:30").time()
 MARKET_CLOSE_TIME = pd.Timestamp("16:00").time()
 
-# 盤前時段的起訖時間（美東時間）
+# Start time of the premarket session (US Eastern time)
 PREMARKET_OPEN_TIME = pd.Timestamp("04:00").time()
 
 
 def get_now_in_eastern() -> pd.Timestamp:
-    """回傳現在的美東時間。"""
+    """Return the current time in US Eastern time."""
     return pd.Timestamp.now(tz="America/New_York")
 
 
 def is_market_open() -> bool:
-    """判斷現在美東時間是否在正常交易時段內（週一到週五 09:30-16:00）。"""
+    """Determine whether the current US Eastern time falls within regular trading hours (Monday to Friday, 09:30-16:00)."""
     now = get_now_in_eastern()
 
     if now.weekday() > 4:
@@ -26,7 +26,7 @@ def is_market_open() -> bool:
 
 
 def is_premarket() -> bool:
-    """判斷現在美東時間是否在盤前時段內（週一到週五 04:00-09:30）。"""
+    """Determine whether the current US Eastern time falls within the premarket session (Monday to Friday, 04:00-09:30)."""
     now = get_now_in_eastern()
 
     if now.weekday() > 4:

@@ -1,16 +1,16 @@
-# 根據此地址: Algorithmic ETF Trading\filters\good_universe_filter.py 關於x%和y%的定義
-# 先用x由高而低排名，再用y由高而低排名
-# 最後輸出結果至"Algorithmic ETF Trading\data\ranked_good_universe.csv"
+# Based on the definitions of x% and y% in: ETF_Trading_Model\filters\good_universe_filter.py
+# Rank first by x from high to low, then by y from high to low
+# Finally, output the result to "ETF_Trading_Model\data\ranked_good_universe.csv"
 
 import pandas as pd
 
 
 def rank_good_universe(df: pd.DataFrame) -> pd.DataFrame:
-    """輸入good_universe的DataFrame，回傳依x、y排名後的DataFrame。"""
-    # 先依x由高到低排名，x相同時依y由高到低排名
+    """Take the good_universe DataFrame and return it ranked by x and y."""
+    # Rank first by x from high to low; when x is tied, rank by y from high to low
     ranked_df = df.sort_values(by=["x", "y"], ascending=[False, False]).reset_index(drop=True)
 
-    # 新增rank欄位，從1開始編號
+    # Add a rank column, numbered starting from 1
     ranked_df["rank"] = ranked_df.index + 1
 
     return ranked_df

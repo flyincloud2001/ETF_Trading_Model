@@ -1,6 +1,6 @@
-# 這份檔案將在"build_universe_and_good_universe.py"被執行後才可執行
-# 這份檔案將根據地址"Algorithmic ETF Trading\trading_logic"中的"how_to_rank.py"去輸出檔案
-# 輸出的檔案地址為"Algorithmic ETF Trading\data\ranked_good_universe.csv"
+# This file can only be run after "build_universe_and_good_universe.py" has been executed
+# This file produces its output using "how_to_rank.py" located at "ETF_Trading_Model\trading_logic"
+# The output file path is "ETF_Trading_Model\data\ranked_good_universe.csv"
 
 import time
 
@@ -10,20 +10,20 @@ import yfinance as yf
 
 from trading_logic.how_to_rank import rank_good_universe
 
-# ========== 參數設定 ==========
+# ========== Parameter settings ==========
 GOOD_UNIVERSE_PATH = "data/good_universe.csv"
 RANKED_OUTPUT_PATH = "data/ranked_good_universe.csv"
 REQUEST_DELAY = 0.3
 PROGRESS_INTERVAL = 20
 
-# 資料不足的最少歷史資料筆數門檻（與filters/good_universe_filter.py一致）
+# Minimum required number of historical data rows for "insufficient data" (consistent with filters/good_universe_filter.py)
 MIN_REQUIRED_ROWS = 500
 
 
 def _compute_best_bin(symbol: str):
     """
-    對單一ETF重新抓取10年資料，計算42個區間中x值最高的區間。
-    回傳(x, y, best_bin_lower, best_bin_upper)；資料不足時回傳None。
+    Re-fetch 10 years of data for a single ETF and find the bin with the highest x value among the 42 bins.
+    Returns (x, y, best_bin_lower, best_bin_upper); returns None when data is insufficient.
     """
     hist = yf.Ticker(symbol).history(period="10y", auto_adjust=True)
 
@@ -32,18 +32,18 @@ def _compute_best_bin(symbol: str):
 
     data = hist[["Open", "Close"]].copy()
 
-    # 今日收盤相對昨日收盤的報酬率
+    # Today's close-vs-yesterday's-close return
     data["return"] = data["Close"] / data["Close"].shift(1)
-    # 明日開盤相對今日收盤的報酬率
+    # Tomorrow's open-vs-today's-close return
     data["tomorrow_return"] = data["Open"].shift(-1) / data["Close"]
 
     data = data.dropna(subset=["return", "tomorrow_return"])
 
-    # 轉換為百分比形式，例如1.02變成2.0
+    # Convert to percentage form, e.g. 1.02 becomes 2.0
     data["return"] = data["return"] * 100 - 100
 
-    # 與filters/good_universe_filter.py完全相同的42個區間定義：
-    # (-inf, -4.0)、[-4.0, -3.8)、...、[3.8, 4.0)、[4.0, inf)
+    # The exact same 42-bin definition as filters/good_universe_filter.py:
+    # (-inf, -4.0), [-4.0, -3.8), ..., [3.8, 4.0), [4.0, inf)
     breakpoints = [round(-4.0 + i * 0.2, 1) for i in range(41)]
     bin_edges = [-np.inf] + breakpoints + [np.inf]
     data["bin"] = pd.cut(data["return"], bins=bin_edges, right=False)
@@ -57,15 +57,15 @@ def _compute_best_bin(symbol: str):
         tomorrow_returns = group["tomorrow_return"]
         count = len(tomorrow_returns)
 
-        # x% = 該區間中明日開盤上漲（tomorrow_return > 1.0）的比例
+        # x% = the proportion in this bin where tomorrow's open rose (tomorrow_return > 1.0)
         up_mask = tomorrow_returns > 1.0
         x = up_mask.mean() * 100
 
-        # y = 上漲值的平均值，若無上漲值則為0
+        # y = the average of the up-move values, or 0 if there are no up-move values
         up_values = tomorrow_returns[up_mask]
         y = up_values.mean() if not up_values.empty else 0.0
 
-        # x值最高的區間為最佳區間，平手則取事件數較多的
+        # The bin with the highest x value is the best bin; ties are broken by the higher event count
         if x > best_x or (x == best_x and count > best_count):
             best_x = x
             best_count = count

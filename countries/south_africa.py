@@ -1,4 +1,4 @@
-# 這份檔案用來抓取南非JSE所有ETF代碼
+# This file fetches all South African JSE exchange ETF symbols
 
 import io
 import re
@@ -9,17 +9,17 @@ import requests
 import yfinance as yf
 from bs4 import BeautifulSoup
 
-# JSE ETF清單頁面網址
+# JSE ETF list page URL
 JSE_ETF_LIST_PAGE_URL = "https://www.jse.co.za/files/etf-list"
 
-# 找不到頁面連結時的備援XLSX網址
+# Fallback XLSX URL used when the page link cannot be found
 FALLBACK_XLSX_URL = "https://www.jse.co.za/sites/default/files/media/documents/ETFList/ETF%20List%20v.53.xlsx"
 
-# justETF備援用的搜尋頁網址與動態counter正則表達式（與countries/uk.py相同邏輯）
+# justETF fallback search page URL and dynamic counter regex pattern (same logic as countries/uk.py)
 JUSTETF_SEARCH_PAGE_URL = "https://www.justetf.com/en/search.html?search=ETFS"
 JUSTETF_COUNTER_PATTERN = r"(\d+)-1\.0-container-tabsContentContainer-tabsContentRepeater-1-container-content-etfsTablePanel&search=ETFS&_wicket=1"
 
-# justETF POST請求固定的payload，country設為ZA、defaultCurrency設為ZAR
+# Fixed payload for the justETF POST request, with country set to ZA and defaultCurrency set to ZAR
 JUSTETF_POST_PAYLOAD = {
     "draw": 1,
     "start": 0,
@@ -30,23 +30,23 @@ JUSTETF_POST_PAYLOAD = {
     "defaultCurrency": "ZAR",
 }
 
-# 偽裝瀏覽器的User-Agent，避免被拒絕
+# Spoofed browser User-Agent, to avoid being rejected
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-# 名稱必須排除的關鍵字（槓桿、反向ETF）
+# Keywords that must be excluded from the name (leveraged, inverse ETFs)
 EXCLUDED_NAME_KEYWORDS = ("INVERSE", "LEVERAGED", "BEAR", "SHORT", "2X", "3X")
 
-# 可能包含股票代碼的欄位名稱關鍵字
+# Column name keywords that may indicate a ticker code column
 CODE_COLUMN_KEYWORDS = ("CODE", "TICKER", "SYMBOL", "JSE")
-# 可能包含名稱的欄位名稱關鍵字
+# Column name keywords that may indicate a name column
 NAME_COLUMN_KEYWORDS = ("NAME", "FUND", "ETF")
 
-# 每次用yfinance驗證代碼之間的等待秒數
+# Wait time in seconds between each yfinance symbol verification
 VERIFY_DELAY_SECONDS = 0.3
 
 
 def _find_column(keys, keywords):
-    """依關鍵字動態找出對應的欄位名稱，找不到則回傳None。"""
+    """Dynamically locate the matching column name from the keywords; return None if not found."""
     for key in keys:
         key_upper = str(key).upper()
         if any(keyword in key_upper for keyword in keywords):
@@ -55,14 +55,14 @@ def _find_column(keys, keywords):
 
 
 def _name_is_excluded(name) -> bool:
-    """判斷名稱是否含有槓桿、反向等應排除的關鍵字。"""
+    """Determine whether the name contains a keyword that should be excluded, such as leveraged or inverse."""
     if name is None or (isinstance(name, float) and pd.isna(name)):
         return False
     return any(keyword in str(name).upper() for keyword in EXCLUDED_NAME_KEYWORDS)
 
 
 def _find_xlsx_url() -> str:
-    """從JSE ETF清單頁面找出最新的XLSX下載連結，找不到則回傳備援網址。"""
+    """Locate the latest XLSX download link on the JSE ETF list page; return the fallback URL if not found."""
     try:
         response = requests.get(JSE_ETF_LIST_PAGE_URL, headers=HEADERS, timeout=30)
         response.raise_for_status()
@@ -81,7 +81,7 @@ def _find_xlsx_url() -> str:
 
 
 def _fetch_codes_from_jse() -> list[str]:
-    """第一步：下載JSE的ETF清單XLSX並解析出代碼。"""
+    """Step 1: download the JSE ETF list XLSX and parse out the codes."""
     xlsx_url = _find_xlsx_url()
 
     response = requests.get(xlsx_url, headers=HEADERS, timeout=30)
@@ -89,7 +89,7 @@ def _fetch_codes_from_jse() -> list[str]:
 
     df = pd.read_excel(io.BytesIO(response.content))
 
-    # 印出所有欄位名稱以便除錯
+    # Print all column names for debugging
     print(f"JSE ETF list column names: {list(df.columns)}")
 
     code_column = _find_column(df.columns, CODE_COLUMN_KEYWORDS)
@@ -118,7 +118,7 @@ def _fetch_codes_from_jse() -> list[str]:
 
 
 def _fetch_codes_from_justetf() -> list[str]:
-    """第二步：JSE來源失敗時，改用justETF備援（與countries/uk.py相同邏輯）。"""
+    """Step 2: when the JSE source fails, fall back to justETF (same logic as countries/uk.py)."""
     session = requests.Session()
 
     get_response = session.get(JUSTETF_SEARCH_PAGE_URL, headers=HEADERS, timeout=30)
@@ -149,7 +149,7 @@ def _fetch_codes_from_justetf() -> list[str]:
         if not ticker or not name:
             continue
 
-        # 名稱必須包含"ETF"字樣才保留
+        # The name must contain "ETF" to be kept
         if "ETF" not in name.upper():
             continue
 
@@ -162,7 +162,7 @@ def _fetch_codes_from_justetf() -> list[str]:
 
 
 def _verify_and_build_symbols(codes) -> list[str]:
-    """把代碼加上.JO後綴，並逐一用yfinance驗證是否為有效ETF。"""
+    """Append the .JO suffix to each code and verify each one individually as a valid ETF via yfinance."""
     symbols = []
     for code in codes:
         symbol = f"{code}.JO"
@@ -180,7 +180,7 @@ def _verify_and_build_symbols(codes) -> list[str]:
 
 
 def get_za_etf_symbols() -> list[str]:
-    """回傳南非JSE所有ETF代碼的清單（yfinance使用的.JO後綴格式）。"""
+    """Return the list of all ETF symbols on the South African JSE exchange (in the .JO suffix format used by yfinance)."""
     codes = []
     try:
         codes = _fetch_codes_from_jse()

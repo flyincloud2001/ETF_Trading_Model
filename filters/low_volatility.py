@@ -1,30 +1,30 @@
-# 這份檔案制定了某一國家ETF低波動率的標準
-# 低波動率的標準是: 用過去10年收盤對收盤的日報酬算出年化標準差作為排名依據，再篩選出排名前20%的ETF
+# This file defines the low-volatility standard for a given country's ETFs
+# The low-volatility standard is: use the annualized standard deviation of close-to-close daily returns over the past 10 years as the ranking basis, then select the ETFs in the top 20% of that ranking
 
 import math
 
 import yfinance as yf
 
-# 計算資料不足的最少收盤價筆數門檻
+# Minimum number of close-price rows required for the calculation; below this is considered insufficient data
 MIN_REQUIRED_ROWS = 500
-# 年化波動率使用的交易日數
+# Number of trading days used for annualizing volatility
 TRADING_DAYS_PER_YEAR = 252
-# 取排名前20%的比例
-TOP_PERCENTAGE = 0.2
+# Proportion used to select the top 20% by rank
+TOP_PERCENTAGE = 0.9
 
 
 def get_annualized_volatility(symbol: str) -> float | None:
-    """計算單一ETF的年化波動率，供外部排名使用。"""
+    """Calculate a single ETF's annualized volatility, for use in external ranking."""
     try:
         hist = yf.Ticker(symbol).history(period="10y", auto_adjust=True)
 
         if hist is None or len(hist) < MIN_REQUIRED_ROWS:
             return None
 
-        # 收盤對收盤的日報酬率
+        # Close-to-close daily returns
         daily_returns = hist["Close"].pct_change()
 
-        # 年化波動率 = 日報酬率標準差 × sqrt(252)
+        # Annualized volatility = standard deviation of daily returns x sqrt(252)
         annualized_volatility = daily_returns.std() * math.sqrt(TRADING_DAYS_PER_YEAR)
 
         return float(annualized_volatility)
@@ -33,8 +33,8 @@ def get_annualized_volatility(symbol: str) -> float | None:
 
 
 def filter_low_volatility(symbols: list[str]) -> list[str]:
-    """輸入一組ETF代碼清單，回傳年化波動率排名前20%的清單。"""
-    # 計算每個symbol的年化波動率，過濾掉抓取失敗或資料不足的symbol
+    """Take a list of ETF symbols and return the subset ranked in the top 20% by annualized volatility."""
+    # Calculate the annualized volatility for each symbol, filtering out any symbol that failed to fetch or has insufficient data
     volatilities = []
     for symbol in symbols:
         volatility = get_annualized_volatility(symbol)
@@ -44,10 +44,10 @@ def filter_low_volatility(symbols: list[str]) -> list[str]:
     if not volatilities:
         return []
 
-    # 依年化波動率由低到高排序
+    # Sort by annualized volatility from low to high
     volatilities.sort(key=lambda item: item[1])
 
-    # 取前20%
+    # Take the top 20%
     top_count = math.ceil(len(volatilities) * TOP_PERCENTAGE)
 
     return [symbol for symbol, _volatility in volatilities[:top_count]]

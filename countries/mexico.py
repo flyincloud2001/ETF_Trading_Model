@@ -1,15 +1,15 @@
-# 這份檔案用來抓取墨西哥BMV所有本地ETF代碼
+# This file fetches all Mexican BMV local ETF symbols
 
 import pandas as pd
 import requests
 
-# BMV官方TRAC頁面網址
+# Official BMV TRAC page URL
 BMV_TRAC_URL = "https://www.bmv.com.mx/en/markets/tracks"
 
-# 偽裝瀏覽器的User-Agent，避免被拒絕
+# Spoofed browser User-Agent, to avoid being rejected
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-# BMV官網解析失敗時使用的靜態備援代碼清單
+# Static fallback ticker list used when the official BMV site parsing fails
 STATIC_FALLBACK_TICKERS = (
     "NAFTRACISHRS",
     "ILCTRACISHRS",
@@ -24,7 +24,7 @@ STATIC_FALLBACK_TICKERS = (
     "QVGMEX18",
 )
 
-# 名稱或代碼必須排除的關鍵字（反向、槓桿ETF；ANGEL10是2倍槓桿）
+# Keywords that must be excluded from the name or code (inverse, leveraged ETFs; ANGEL10 is 2x leveraged)
 EXCLUDED_KEYWORDS = (
     "INVERSE",
     "INVERSO",
@@ -39,14 +39,14 @@ EXCLUDED_KEYWORDS = (
 
 
 def _is_excluded(text) -> bool:
-    """判斷文字是否含有反向、槓桿等應排除的關鍵字。"""
+    """Determine whether the text contains a keyword that should be excluded, such as inverse or leveraged."""
     if text is None or (isinstance(text, float) and pd.isna(text)):
         return False
     return any(keyword in str(text).upper() for keyword in EXCLUDED_KEYWORDS)
 
 
 def _fetch_from_bmv() -> list[str]:
-    """第一步：從BMV官方TRAC頁面解析所有表格的第一欄代碼。"""
+    """Step 1: parse the first column of every table on the official BMV TRAC page for codes."""
     response = requests.get(BMV_TRAC_URL, headers=HEADERS, timeout=30)
     response.raise_for_status()
 
@@ -60,14 +60,14 @@ def _fetch_from_bmv() -> list[str]:
         if table.shape[1] < 1:
             continue
 
-        # 每個表格的第一欄通常是NAME欄，BMV代碼由多個英數字母組成
+        # The first column of each table is usually the NAME column; BMV codes consist of multiple alphanumeric characters
         first_column = table.iloc[:, 0]
 
         for value in first_column:
             if pd.isna(value):
                 continue
 
-            # 去除空白後取完整字串作為代碼
+            # Strip whitespace and use the full string as the code
             ticker = "".join(str(value).split())
             if ticker:
                 tickers.append(ticker)
@@ -76,7 +76,7 @@ def _fetch_from_bmv() -> list[str]:
 
 
 def _apply_filter(tickers) -> list[str]:
-    """套用排除關鍵字與空值篩選，並加上.MX後綴。"""
+    """Apply the excluded-keyword and empty-value filters, and append the .MX suffix."""
     symbols = []
     for ticker in tickers:
         if ticker is None or (isinstance(ticker, float) and pd.isna(ticker)):
@@ -95,7 +95,7 @@ def _apply_filter(tickers) -> list[str]:
 
 
 def get_mx_etf_symbols() -> list[str]:
-    """回傳墨西哥BMV所有本地ETF代碼的清單（yfinance使用的.MX後綴格式）。"""
+    """Return the list of all local ETF symbols on the Mexican BMV exchange (in the .MX suffix format used by yfinance)."""
     try:
         tickers = _fetch_from_bmv()
         symbols = _apply_filter(tickers)

@@ -1,21 +1,21 @@
-# 這份檔案用來抓取台灣TWSE所有ETF代碼
+# This file fetches all Taiwan TWSE exchange ETF symbols
 
 import pandas as pd
 import requests
 
-# TWSE官方開放資料API：基金基本資料彙總表
+# Official TWSE OpenAPI: fund basic information summary
 TWSE_API_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap47_L"
 
-# Wikipedia備援頁面網址（TWSE官方API失敗時依序嘗試）
+# Wikipedia fallback page URLs (tried in order when the official TWSE API fails)
 WIKI_FALLBACK_URLS = (
     "https://en.wikipedia.org/wiki/List_of_Taiwan_exchange-traded_funds",
     "https://zh.wikipedia.org/wiki/臺灣指數股票型基金列表",
 )
 
-# 偽裝瀏覽器的User-Agent，避免被拒絕
+# Spoofed browser User-Agent, to avoid being rejected
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-# 名稱必須排除的關鍵字（槓桿、反向ETF）。中文關鍵字需保留原文，用來比對中文基金名稱
+# Keywords that must be excluded from the name (leveraged, inverse ETFs). The Chinese keywords must be kept as-is, since they are used to match Chinese fund names
 EXCLUDED_NAME_KEYWORDS = (
     "槓桿",
     "反向",
@@ -29,14 +29,14 @@ EXCLUDED_NAME_KEYWORDS = (
     "3倍",
 )
 
-# 可能包含基金代號、名稱、上市日期的欄位名稱關鍵字
+# Column name keywords that may indicate the fund code, name, or listing date columns
 CODE_COLUMN_KEYWORDS = ("基金代號", "代號", "CODE", "SYMBOL", "TICKER")
 NAME_COLUMN_KEYWORDS = ("基金中文名稱", "基金名稱", "名稱", "NAME")
 LISTING_DATE_COLUMN_KEYWORDS = ("上市日期", "上市", "LISTING DATE", "DATE")
 
 
 def _find_column(keys, keywords):
-    """依關鍵字動態找出對應的欄位名稱，找不到則回傳None。"""
+    """Dynamically locate the matching column name from the keywords; return None if not found."""
     for key in keys:
         key_upper = str(key).upper()
         if any(keyword.upper() in key_upper for keyword in keywords):
@@ -45,7 +45,7 @@ def _find_column(keys, keywords):
 
 
 def _name_is_excluded(name) -> bool:
-    """判斷名稱是否含有槓桿、反向等應排除的關鍵字。"""
+    """Determine whether the name contains a keyword that should be excluded, such as leveraged or inverse."""
     if name is None or (isinstance(name, float) and pd.isna(name)):
         return False
     name_str = str(name).upper()
@@ -53,7 +53,7 @@ def _name_is_excluded(name) -> bool:
 
 
 def _fetch_from_twse_api() -> list[str]:
-    """呼叫TWSE官方開放資料API，取得基金基本資料彙總表並解析出ETF代碼。"""
+    """Call the official TWSE OpenAPI to get the fund basic information summary and parse out the ETF symbols."""
     response = requests.get(TWSE_API_URL, headers=HEADERS, timeout=30)
     response.raise_for_status()
     records = response.json()
@@ -65,12 +65,12 @@ def _fetch_from_twse_api() -> list[str]:
     code_column = _find_column(sample_keys, CODE_COLUMN_KEYWORDS)
 
     if code_column is None:
-        # 找不到代號欄位時，印出所有欄位名稱以便除錯
+        # If the code column cannot be found, print all column names for debugging
         print(f"Error: could not find fund code column, available columns: {sample_keys}")
         raise ValueError("Fund code column not found in TWSE API response")
 
     name_column = _find_column(sample_keys, NAME_COLUMN_KEYWORDS)
-    # 上市日期欄位目前只用於確認資料表結構，暫不作為篩選依據
+    # The listing date column is currently only used to confirm the table structure, and is not yet used for filtering
     _listing_date_column = _find_column(sample_keys, LISTING_DATE_COLUMN_KEYWORDS)
 
     symbols = []
@@ -91,7 +91,7 @@ def _fetch_from_twse_api() -> list[str]:
 
 
 def _fetch_from_wikipedia() -> list[str]:
-    """TWSE官方API失敗時，依序嘗試Wikipedia頁面備援。"""
+    """When the official TWSE API fails, try the Wikipedia fallback pages in order."""
     for url in WIKI_FALLBACK_URLS:
         try:
             response = requests.get(url, headers=HEADERS, timeout=30)
@@ -132,7 +132,7 @@ def _fetch_from_wikipedia() -> list[str]:
 
 
 def get_tw_etf_symbols() -> list[str]:
-    """回傳台灣TWSE所有ETF代碼的清單（yfinance使用的.TW後綴格式）。"""
+    """Return the list of all ETF symbols on the Taiwan TWSE exchange (in the .TW suffix format used by yfinance)."""
     try:
         symbols = _fetch_from_twse_api()
         if symbols:

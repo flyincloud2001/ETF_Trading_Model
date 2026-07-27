@@ -1,9 +1,9 @@
-# Each time this file is run, it filters only one country (the comments below use Canada as an example)
-# When this code is run, it filters ETFs based on the five files "ibkr_tradeable.py, listing_age.py, low_volatility.py, remove_correlated_etfs.py, min_volume.py" located at "ETF_Trading_Model\filters", and "canada.py" located at "ETF_Trading_Model\countries", and adds them to "ETF_Trading_Model\data\universe.csv"
-# After building good_universe.csv, this file continues to filter ETFs from good_universe.csv using "good_universe_filter.py" located at "ETF_Trading_Model\filters", and adds them to "ETF_Trading_Model\data\good_universe.csv"
-# The country being filtered can be manually specified; the code contains a comment marking "Country I can change"
-# Every time this code is run (every time a country is filtered), the universe.csv and good_universe.csv files are updated in sequence, not replaced
-# This file, out_sampling.py, is not being changed for now
+# This file filters ETFs for a single country each time it runs (the comments below use Canada as an example)
+# When this script runs, it filters ETFs using the five files "ibkr_tradeable.py, listing_age.py, low_volatility.py, remove_correlated_etfs.py, min_volume.py" in "ETF_Trading_Model\filters", and "canada.py" in "ETF_Trading_Model\countries", then appends the results to "ETF_Trading_Model\data\universe.csv"
+# After building good_universe.csv, this script continues filtering the ETFs in good_universe.csv using "good_universe_filter.py" in "ETF_Trading_Model\filters", and appends the results to "ETF_Trading_Model\data\good_universe.csv"
+# The country to filter can be set manually; the code includes a comment marking "countries I can change"
+# Each time this script runs (each time a country is filtered), universe.csv and good_universe.csv are updated, not replaced
+# This file, out_sampling.py, is not used for now
 
 import os
 import time
@@ -41,8 +41,8 @@ from filters.remove_correlated_etfs import remove_correlated_etfs
 from filters.ibkr_tradeable import filter_ibkr_tradeable
 from filters.good_universe_filter import passes_good_universe
 
-# ========== Parameter settings block ==========
-# Country I can change: edit manually before each run, currently supports "United States", "Canada", "United Kingdom", "Germany", "Japan", "Australia", "France", "Netherlands", "South Korea", "Switzerland", "Hong Kong", "Singapore", "India", "Taiwan", "Brazil", "Mexico", "Turkey", "Saudi Arabia", "Indonesia", "South Africa", "Poland", "Chile", "Israel", "Vietnam"
+# ========== Parameter settings ==========
+# Countries I can change: edit manually before each run; currently supports "United States", "Canada", "United Kingdom", "Germany", "Japan", "Australia", "France", "Netherlands", "South Korea", "Switzerland", "Hong Kong", "Singapore", "India", "Taiwan", "Brazil", "Mexico", "Turkey", "Saudi Arabia", "Indonesia", "South Africa", "Poland", "Chile", "Israel", "Vietnam"
 COUNTRY = "United States"
 
 UNIVERSE_PATH = "data/universe.csv"
@@ -79,7 +79,7 @@ COUNTRY_SYMBOL_FETCHERS = {
 
 
 def _load_existing_csv(path: str, columns: list[str]) -> pd.DataFrame:
-    """Read the existing csv; if it doesn't exist or is empty, return an empty DataFrame with only the specified columns."""
+    """Read the existing CSV; if it doesn't exist or is empty, return an empty DataFrame with only the specified columns."""
     if os.path.exists(path) and os.path.getsize(path) > 0:
         return pd.read_csv(path)
     return pd.DataFrame(columns=columns)
@@ -87,12 +87,12 @@ def _load_existing_csv(path: str, columns: list[str]) -> pd.DataFrame:
 
 def main():
     if COUNTRY not in COUNTRY_SYMBOL_FETCHERS:
-        print(f"Error: unsupported country \"{COUNTRY}\", please check the COUNTRY setting")
+        print(f"Error: unsupported country '{COUNTRY}', please check the COUNTRY setting")
         return
 
     print(f"===== Starting filter for country: {COUNTRY} =====")
 
-    # Step 1: get the country's raw ETF symbol list based on COUNTRY
+    # Step 1: get the raw ETF symbol list for this country based on COUNTRY
     symbols = COUNTRY_SYMBOL_FETCHERS[COUNTRY]()
     print(f"Retrieved raw ETF symbol list, {len(symbols)} total")
 
@@ -117,7 +117,7 @@ def main():
     remaining = filter_low_volatility(remaining)
     print(f"{len(remaining)} remaining after 'low volatility' filter")
 
-    # Step 2d: exclude ETFs with correlated price movement (passed in as a batch)
+    # Step 2d: remove ETFs with correlated price movement (passed in as a batch)
     remaining = remove_correlated_etfs(remaining)
     print(f"{len(remaining)} remaining after 'removing correlated ETFs'")
 
@@ -130,7 +130,7 @@ def main():
     # Step 3: symbols that pass all filters are treated as this country's universe
     universe_df = pd.DataFrame({"symbol": remaining, "country": COUNTRY})
 
-    # Step 4: read the existing universe.csv, remove old data for the same country, then append the new results
+    # Step 4: read the existing universe.csv, remove old rows for this country, then append the new results
     existing_universe_df = _load_existing_csv(UNIVERSE_PATH, ["symbol", "country"])
     existing_universe_df = existing_universe_df[existing_universe_df["country"] != COUNTRY]
     updated_universe_df = pd.concat([existing_universe_df, universe_df], ignore_index=True)
@@ -145,7 +145,7 @@ def main():
         time.sleep(REQUEST_DELAY)
     print(f"{len(good_universe_symbols)} remaining after 'good_universe' filter")
 
-    # Step 6: read the existing good_universe.csv, remove old data for the same country, then append the new results
+    # Step 6: read the existing good_universe.csv, remove old rows for this country, then append the new results
     good_universe_df = pd.DataFrame({"symbol": good_universe_symbols, "country": COUNTRY})
     existing_good_universe_df = _load_existing_csv(GOOD_UNIVERSE_PATH, ["symbol", "country"])
     existing_good_universe_df = existing_good_universe_df[existing_good_universe_df["country"] != COUNTRY]

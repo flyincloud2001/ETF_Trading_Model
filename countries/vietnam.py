@@ -1,4 +1,4 @@
-# 這份檔案用來抓取越南HOSE交易所所有ETF代碼
+# This file fetches all Vietnamese HOSE exchange ETF symbols
 
 import time
 
@@ -6,10 +6,10 @@ import pandas as pd
 import requests
 import yfinance as yf
 
-# stockanalysis.com上越南ETF清單頁面網址
+# stockanalysis.com page URL listing Vietnamese ETFs
 STOCKANALYSIS_URL = "https://stockanalysis.com/list/vietnam-etfs/"
 
-# stockanalysis.com解析失敗時使用的靜態備援代碼清單
+# Static fallback ticker list used when stockanalysis.com parsing fails
 STATIC_FALLBACK_TICKERS = (
     "E1VFVN30",
     "FUEVFVND",
@@ -23,23 +23,23 @@ STATIC_FALLBACK_TICKERS = (
     "VFMVSF",
 )
 
-# 偽裝瀏覽器的User-Agent，避免被拒絕
+# Spoofed browser User-Agent, to avoid being rejected
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-# 名稱必須排除的關鍵字（槓桿、反向ETF）
+# Keywords that must be excluded from the name (leveraged, inverse ETFs)
 EXCLUDED_NAME_KEYWORDS = ("INVERSE", "LEVERAGED", "BEAR", "SHORT", "2X", "3X")
 
-# 可能包含代碼的欄位名稱關鍵字
+# Column name keywords that may indicate a code column
 CODE_COLUMN_KEYWORDS = ("SYMBOL", "TICKER", "CODE")
-# 可能包含名稱的欄位名稱關鍵字
+# Column name keywords that may indicate a name column
 NAME_COLUMN_KEYWORDS = ("NAME",)
 
-# 每次用yfinance驗證代碼之間的等待秒數
+# Wait time in seconds between each yfinance symbol verification
 VERIFY_DELAY_SECONDS = 0.3
 
 
 def _find_column(keys, keywords):
-    """依關鍵字動態找出對應的欄位名稱，找不到則回傳None。"""
+    """Dynamically locate the matching column name from the keywords; return None if not found."""
     for key in keys:
         key_upper = str(key).upper()
         if any(keyword in key_upper for keyword in keywords):
@@ -48,14 +48,14 @@ def _find_column(keys, keywords):
 
 
 def _name_is_excluded(name) -> bool:
-    """判斷名稱是否含有槓桿、反向等應排除的關鍵字。"""
+    """Determine whether the name contains a keyword that should be excluded, such as leveraged or inverse."""
     if name is None or (isinstance(name, float) and pd.isna(name)):
         return False
     return any(keyword in str(name).upper() for keyword in EXCLUDED_NAME_KEYWORDS)
 
 
 def _fetch_codes_from_stockanalysis() -> list[str]:
-    """第一步：從stockanalysis.com解析越南ETF清單，取出候選代碼。"""
+    """Step 1: parse the Vietnamese ETF list from stockanalysis.com and extract candidate codes."""
     response = requests.get(STOCKANALYSIS_URL, headers=HEADERS, timeout=30)
     response.raise_for_status()
 
@@ -64,7 +64,7 @@ def _fetch_codes_from_stockanalysis() -> list[str]:
     codes = []
     for table in tables:
         columns = [str(col) for col in table.columns]
-        # 印出找到的表格欄位名稱以便除錯
+        # Print the found table column names for debugging
         print(f"Found table columns: {columns}")
 
         code_column = _find_column(columns, CODE_COLUMN_KEYWORDS)
@@ -92,7 +92,7 @@ def _fetch_codes_from_stockanalysis() -> list[str]:
 
 
 def _verify_and_build_symbols(codes) -> list[str]:
-    """把代碼加上.VN後綴，並逐一用yfinance驗證是否為有效ETF。"""
+    """Append the .VN suffix to each code and verify each one individually as a valid ETF via yfinance."""
     symbols = []
     for code in codes:
         if code is None or (isinstance(code, float) and pd.isna(code)):
@@ -117,7 +117,7 @@ def _verify_and_build_symbols(codes) -> list[str]:
 
 
 def get_vn_etf_symbols() -> list[str]:
-    """回傳越南HOSE交易所所有ETF代碼的清單（yfinance使用的.VN後綴格式）。"""
+    """Return the list of all ETF symbols on the Vietnamese HOSE exchange (in the .VN suffix format used by yfinance)."""
     try:
         codes = _fetch_codes_from_stockanalysis()
         symbols = _verify_and_build_symbols(codes)

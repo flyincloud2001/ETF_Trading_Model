@@ -1,4 +1,4 @@
-# 這份檔案用來抓取印尼IDX交易所所有ETF代碼
+# This file fetches all Indonesian IDX exchange ETF symbols
 
 import time
 
@@ -6,13 +6,13 @@ import pandas as pd
 import requests
 import yfinance as yf
 
-# IDX內部API網址
+# IDX internal API URL
 IDX_API_URL = "https://www.idx.co.id/umbraco/Surface/ETFData/GetEtfListAll"
 
-# IDX ETF清單頁面網址（內部API失敗時的備援）
+# IDX ETF list page URL (fallback when the internal API fails)
 IDX_ETF_PAGE_URL = "https://www.idx.co.id/en/market-data/exchanged-traded-fund-etf-data/exchange-traded-fund-etf-list"
 
-# 偽裝完整瀏覽器的headers，避免被拒絕
+# Full spoofed browser headers, to avoid being rejected
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -20,20 +20,20 @@ HEADERS = {
     "Referer": "https://www.idx.co.id/",
 }
 
-# 名稱必須排除的關鍵字（槓桿、反向ETF）
+# Keywords that must be excluded from the name (leveraged, inverse ETFs)
 EXCLUDED_NAME_KEYWORDS = ("INVERSE", "LEVERAGED", "BEAR", "SHORT", "2X", "3X")
 
-# 可能包含代碼的欄位名稱關鍵字
+# Column name keywords that may indicate a code column
 CODE_COLUMN_KEYWORDS = ("CODE", "STOCKCODE", "ETFCODE", "SYMBOL", "KODE")
-# 可能包含名稱的欄位名稱關鍵字
+# Column name keywords that may indicate a name column
 NAME_COLUMN_KEYWORDS = ("NAME", "NAMA")
 
-# 每次用yfinance驗證代碼之間的等待秒數
+# Wait time in seconds between each yfinance symbol verification
 VERIFY_DELAY_SECONDS = 0.3
 
 
 def _find_column(keys, keywords):
-    """依關鍵字動態找出對應的欄位名稱，找不到則回傳None。"""
+    """Dynamically locate the matching column name from the keywords; return None if not found."""
     for key in keys:
         key_upper = str(key).upper()
         if any(keyword in key_upper for keyword in keywords):
@@ -42,14 +42,14 @@ def _find_column(keys, keywords):
 
 
 def _name_is_excluded(name) -> bool:
-    """判斷名稱是否含有槓桿、反向等應排除的關鍵字。"""
+    """Determine whether the name contains a keyword that should be excluded, such as leveraged or inverse."""
     if name is None or (isinstance(name, float) and pd.isna(name)):
         return False
     return any(keyword in str(name).upper() for keyword in EXCLUDED_NAME_KEYWORDS)
 
 
 def _extract_from_records(records) -> list[str]:
-    """從JSON資料（list of dict）中動態找出代碼與名稱欄位，取出候選代碼。"""
+    """Dynamically locate the code and name columns in the JSON data (list of dicts) and extract candidate codes."""
     if not records:
         return []
 
@@ -57,7 +57,7 @@ def _extract_from_records(records) -> list[str]:
     code_column = _find_column(sample_keys, CODE_COLUMN_KEYWORDS)
 
     if code_column is None:
-        # 找不到代碼欄位時，印出所有欄位名稱以便除錯
+        # If the code column cannot be found, print all column names for debugging
         print(f"Error: could not find code column in IDX API response, available columns: {sample_keys}")
         return []
 
@@ -79,11 +79,11 @@ def _extract_from_records(records) -> list[str]:
 
 
 def _extract_from_tables(tables) -> list[str]:
-    """從HTML表格中動態找出代碼與名稱欄位，取出候選代碼。"""
+    """Dynamically locate the code and name columns in the HTML tables and extract candidate codes."""
     codes = []
     for table in tables:
         columns = [str(col) for col in table.columns]
-        # 印出找到的表格欄位名稱以便除錯
+        # Print the found table column names for debugging
         print(f"Found table columns: {columns}")
 
         code_column = _find_column(columns, CODE_COLUMN_KEYWORDS)
@@ -111,7 +111,7 @@ def _extract_from_tables(tables) -> list[str]:
 
 
 def _fetch_from_idx_api() -> list[str]:
-    """第一步：呼叫IDX內部API，取得ETF清單。"""
+    """Step 1: call the IDX internal API to get the ETF list."""
     response = requests.get(IDX_API_URL, headers=HEADERS, timeout=30)
     response.raise_for_status()
 
@@ -120,13 +120,13 @@ def _fetch_from_idx_api() -> list[str]:
         records = payload.get("data", payload) if isinstance(payload, dict) else payload
         return _extract_from_records(records)
     except ValueError:
-        # 回應不是JSON，改用pandas.read_html()解析
+        # The response is not JSON, so fall back to parsing with pandas.read_html()
         tables = pd.read_html(response.text)
         return _extract_from_tables(tables)
 
 
 def _fetch_from_idx_page() -> list[str]:
-    """第二步：IDX內部API失敗時，改用IDX ETF清單頁面備援。"""
+    """Step 2: when the IDX internal API fails, fall back to the IDX ETF list page."""
     response = requests.get(IDX_ETF_PAGE_URL, headers=HEADERS, timeout=30)
     response.raise_for_status()
 
@@ -135,7 +135,7 @@ def _fetch_from_idx_page() -> list[str]:
 
 
 def _verify_and_build_symbols(codes) -> list[str]:
-    """把代碼加上.JK後綴，並逐一用yfinance驗證是否為有效ETF。"""
+    """Append the .JK suffix to each code and verify each one individually as a valid ETF via yfinance."""
     symbols = []
     for code in codes:
         symbol = f"{code}.JK"
@@ -153,7 +153,7 @@ def _verify_and_build_symbols(codes) -> list[str]:
 
 
 def get_id_etf_symbols() -> list[str]:
-    """回傳印尼IDX交易所所有ETF代碼的清單（yfinance使用的.JK後綴格式）。"""
+    """Return the list of all ETF symbols on the Indonesian IDX exchange (in the .JK suffix format used by yfinance)."""
     try:
         codes = _fetch_from_idx_api()
 

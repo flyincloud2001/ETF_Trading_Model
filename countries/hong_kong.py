@@ -1,17 +1,17 @@
-# 這份檔案用來抓取香港HKEX所有ETF代碼
+# This file fetches all Hong Kong HKEX exchange ETF symbols
 
 import io
 
 import pandas as pd
 import requests
 
-# HKEX官方ETF清單CSV網址
+# Official HKEX ETF list CSV URL
 HKEX_ETF_LIST_URL = "https://www.hkex.com.hk/eng/etfrc/ListOfAllETF/ETFList.csv"
 
-# 偽裝瀏覽器的User-Agent，避免被拒絕
+# Spoofed browser User-Agent, to avoid being rejected
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-# 名稱必須排除的關鍵字（反向、放空、槓桿、做多、槓桿反向ETF）
+# Keywords that must be excluded from the name (inverse, short, leveraged, bull, leveraged-inverse ETFs)
 EXCLUDED_NAME_KEYWORDS = (
     "INVERSE",
     "BEAR",
@@ -27,21 +27,21 @@ EXCLUDED_NAME_KEYWORDS = (
 
 
 def get_hk_etf_symbols() -> list[str]:
-    """回傳香港HKEX所有ETF代碼的清單（yfinance使用的.HK後綴格式）。"""
+    """Return the list of all ETF symbols on the Hong Kong HKEX exchange (in the .HK suffix format used by yfinance)."""
     try:
         response = requests.get(HKEX_ETF_LIST_URL, headers=HEADERS, timeout=30)
         response.raise_for_status()
 
-        # 這份CSV編碼不固定，先試utf-8-sig，失敗再試latin-1
+        # This CSV's encoding is inconsistent; try utf-8-sig first, then fall back to latin-1
         try:
             df = pd.read_csv(io.BytesIO(response.content), encoding="utf-8-sig")
         except Exception:
             df = pd.read_csv(io.BytesIO(response.content), encoding="latin-1")
 
-        # 印出所有欄位名稱以便除錯
+        # Print all column names for debugging
         print(f"HKEX ETF list column names: {list(df.columns)}")
 
-        # 動態找出股票代碼欄位與名稱欄位
+        # Dynamically locate the ticker code column and name column
         code_column = next((col for col in df.columns if "code" in col.lower()), None)
         name_column = next((col for col in df.columns if "name" in col.lower()), None)
 
@@ -62,13 +62,13 @@ def get_hk_etf_symbols() -> list[str]:
 
         name_upper = str(name).upper()
 
-        # 排除反向、放空、槓桿ETF
+        # Exclude inverse, short, and leveraged ETFs
         if any(keyword in name_upper for keyword in EXCLUDED_NAME_KEYWORDS):
             continue
 
-        # 股票代碼補零至4位，再加上.HK後綴
+        # Zero-pad the ticker code to 4 digits, then append the .HK suffix
         code_str = str(code).strip().split(".")[0].zfill(4)
         symbols.append(f"{code_str}.HK")
 
-    # 去除重複，同時保留原始順序
+    # Remove duplicates while preserving original order
     return list(dict.fromkeys(symbols))

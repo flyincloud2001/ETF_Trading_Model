@@ -1,26 +1,28 @@
-# 先定義data['return']，代表該ETF過去十年的昨日收盤對今日收盤的報酬率
-# 再根據data['return']定義data['tomorrow_return']，代表明日開盤對今日收盤的報酬率
-# 制定不同data['return']值的範圍，單位是%，分界點包含 range(-4, 4.2, 0.2), 每個範圍的形式為(-infinity, a), [b, c), [d, infinity)
-# 針對每個data['return']值的範圍，計算該範圍內有多少比例對應的data['tomorrow_return']的值為上漲，將此比例記作為x%，並計算這些上漲值的平均值y%
-# 選出x值最高的"data['return']值的範圍"
-# 若此範圍的x>=80且y>=0.5，則此ETF被篩選通過
-# 最後將篩選通過的ETF輸出在"Algorithmic ETF Trading\data\good_universe.csv"
+# First define data['return'], representing this ETF's return from yesterday's close to today's close over the past ten years
+# Then, based on data['return'], define data['tomorrow_return'], representing the return from today's close to tomorrow's open
+# Define ranges for the data['return'] values, in %, with breakpoints from range(-4, 4.2, 0.2); each range takes the form (-infinity, a), [b, c), [d, infinity)
+# For each data['return'] range, calculate the proportion of corresponding data['tomorrow_return'] values that are positive, recorded as x%, and calculate the average of those positive values, y%
+# Select the "data['return'] range" with the highest x value
+# If this range has x>=80 and y>=0.5, the ETF passes the filter
+# Finally, output the ETFs that pass the filter to "ETF_Trading_Model\data\good_universe.csv"
 
 import math
 
 import pandas as pd
 import yfinance as yf
 
-# 資料不足的最少歷史資料筆數門檻
+# Minimum number of historical rows required; below this is considered insufficient data
 MIN_REQUIRED_ROWS = 500
-# 最佳區間上漲比例門檻（%）
+# Threshold for the best bin's positive-return proportion (%)
 X_THRESHOLD = 80
-# 最佳區間上漲平均倍數門檻（對應tomorrow_return原始比例，1.005即上漲0.5%以上）
+# Threshold for the best bin's average positive-return multiplier (in tomorrow_return's raw ratio; 1.005 means a gain of 0.5% or more)
 Y_THRESHOLD = 1.005
+# Minimum sample count threshold for the best bin
+MIN_BIN_COUNT = 50
 
 
 def passes_good_universe(symbol: str) -> bool:
-    """判斷單一ETF是否通過good_universe篩選條件。"""
+    """Determine whether a single ETF passes the good_universe filter criteria."""
     try:
         hist = yf.Ticker(symbol).history(period="10y", auto_adjust=True)
 
@@ -29,18 +31,18 @@ def passes_good_universe(symbol: str) -> bool:
 
         data = hist[["Open", "Close"]].copy()
 
-        # 今日收盤相對昨日收盤的報酬率
+        # Today's close relative to yesterday's close
         data["return"] = data["Close"] / data["Close"].shift(1)
-        # 明日開盤相對今日收盤的報酬率
+        # Tomorrow's open relative to today's close
         data["tomorrow_return"] = data["Open"].shift(-1) / data["Close"]
 
         data = data.dropna(subset=["return", "tomorrow_return"])
 
-        # 轉換為百分比形式，例如1.02變成2.0
+        # Convert to percentage form, e.g. 1.02 becomes 2.0
         data["return"] = data["return"] * 100 - 100
 
-        # 依range(-4, 4.2, 0.2)的分界點建立42個區間：
-        # (-inf, -4.0)、[-4.0, -3.8)、...、[3.8, 4.0)、[4.0, inf)
+        # Build 42 bins based on the breakpoints from range(-4, 4.2, 0.2):
+        # (-inf, -4.0), [-4.0, -3.8), ..., [3.8, 4.0), [4.0, inf)
         breakpoints = [round(-4.0 + i * 0.2, 1) for i in range(41)]
         bin_edges = [-math.inf] + breakpoints + [math.inf]
         data["bin"] = pd.cut(data["return"], bins=bin_edges, right=False)
@@ -52,16 +54,18 @@ def passes_good_universe(symbol: str) -> bool:
         for _bin_label, group in data.groupby("bin", observed=True):
             tomorrow_returns = group["tomorrow_return"]
             count = len(tomorrow_returns)
+            if count < MIN_BIN_COUNT:
+                continue
 
-            # x% = 該區間中明日開盤上漲（tomorrow_return > 1.0）的比例
+            # x% = the proportion within this bin where tomorrow's open is higher (tomorrow_return > 1.0)
             up_mask = tomorrow_returns > 1.0
             x = up_mask.mean() * 100
 
-            # y = 上漲值的平均值，若無上漲值則為0
+            # y = the average of the positive values; 0 if there are none
             up_values = tomorrow_returns[up_mask]
             y = up_values.mean() if not up_values.empty else 0.0
 
-            # x值最高的區間為最佳區間，平手則取事件數較多的
+            # The bin with the highest x value is the best bin; ties are broken by the higher event count
             if x > best_x or (x == best_x and count > best_count):
                 best_x = x
                 best_count = count

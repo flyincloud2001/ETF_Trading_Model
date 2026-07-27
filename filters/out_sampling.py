@@ -1,1 +1,1 @@
-# 制定一套標準，測試股票out-sampling的表現，篩選出符合條件的股票
+# Define a set of criteria to test a stock's out-of-sample performance, and filter for stocks that meet the criteria

@@ -1,17 +1,17 @@
-# 這份檔案用來抓取澳洲ASX交易所所有ETF代碼
+# This file fetches all Australian ASX exchange ETF symbols
 
 import io
 
 import pandas as pd
 import requests
 
-# ASX官方上市證券清單CSV網址
+# Official ASX listed securities CSV URL
 ASX_LISTED_COMPANIES_URL = "https://www.asx.com.au/asx/research/ASXListedCompanies.csv"
 
-# 偽裝瀏覽器的User-Agent，避免被拒絕
+# Spoofed browser User-Agent, to avoid being rejected
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-# 名稱必須排除的關鍵字（避險基金、管理型基金、槓桿、放空、反向ETF）
+# Keywords that must be excluded from the name (hedge fund, managed fund, leveraged, short, inverse ETFs)
 EXCLUDED_NAME_KEYWORDS = (
     "HEDGE FUND",
     "MANAGED FUND",
@@ -25,12 +25,12 @@ EXCLUDED_NAME_KEYWORDS = (
 
 
 def get_au_etf_symbols() -> list[str]:
-    """回傳澳洲ASX交易所所有ETF代碼的清單（yfinance使用的.AX後綴格式）。"""
+    """Return the list of all ETF symbols on the Australian ASX exchange (in the .AX suffix format used by yfinance)."""
     try:
         response = requests.get(ASX_LISTED_COMPANIES_URL, headers=HEADERS, timeout=30)
         response.raise_for_status()
 
-        # 這份CSV前兩行是說明文字，第三行才是真正的欄位標題，所以要跳過前兩行
+        # The first two lines of this CSV are descriptive text; the real header row is the third line, so skip the first two lines
         df = pd.read_csv(io.StringIO(response.text), skiprows=2)
     except Exception as e:
         print(f"Error: could not download or parse ASX listed securities list ({e})")
@@ -50,15 +50,15 @@ def get_au_etf_symbols() -> list[str]:
         if not code:
             continue
 
-        # 名稱必須包含"ETF"字樣才保留
+        # The name must contain "ETF" to be kept
         if "ETF" not in name_upper:
             continue
 
-        # 排除避險基金、管理型基金、槓桿、放空、反向ETF
+        # Exclude hedge funds, managed funds, leveraged, short, and inverse ETFs
         if any(keyword in name_upper for keyword in EXCLUDED_NAME_KEYWORDS):
             continue
 
         symbols.append(f"{code}.AX")
 
-    # 去除重複，同時保留原始順序
+    # Remove duplicates while preserving original order
     return list(dict.fromkeys(symbols))

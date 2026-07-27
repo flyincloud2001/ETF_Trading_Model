@@ -1,10 +1,10 @@
-# 這份檔案用來確認ETF是否真的能在IBKR（Interactive Brokers）交易，避免篩選出的ETF在實際下單時找不到合約
+# This file confirms whether an ETF can actually be traded on IBKR (Interactive Brokers), to avoid selecting ETFs whose contracts cannot be found when actually placing an order
 
 import time
 
 from ib_insync import IB, Stock
 
-# 每筆合約查詢之間的等待秒數，避免對TWS/Gateway造成過大負擔
+# Wait time in seconds between each contract query, to avoid overloading TWS/Gateway
 QUERY_INTERVAL_SECONDS = 0.1
 
 
@@ -14,13 +14,13 @@ def filter_ibkr_tradeable(
     port: int = 7497,
     client_id: int = 99,
 ) -> list[str]:
-    """輸入一組ETF代碼清單，回傳真的能在IBKR交易的清單。"""
+    """Take a list of ETF symbols and return the subset that is actually tradeable on IBKR."""
     ib = IB()
 
     try:
         ib.connect(host, port, clientId=client_id)
     except Exception as e:
-        # 連線失敗時不排除任何ETF，直接回傳原始清單
+        # If the connection fails, don't exclude any ETF; just return the original list
         print(f"Warning: could not connect to IBKR ({e}), skipping IBKR tradeability check")
         return list(symbols)
 
@@ -28,7 +28,7 @@ def filter_ibkr_tradeable(
 
     try:
         for symbol in symbols:
-            # 根據代碼後綴建立對應的合約
+            # Build the corresponding contract based on the symbol's suffix
             if symbol.endswith(".L"):
                 base_symbol = symbol[: -len(".L")]
                 contract = Stock(base_symbol, "LSEETF", "GBP")

@@ -1,19 +1,19 @@
-# 這份檔案用來抓取德國Xetra交易所所有ETF代碼
+# This file fetches all German Xetra exchange ETF symbols
 
 import re
 
 import requests
 
-# 偽裝瀏覽器的User-Agent，避免被justETF拒絕
+# Spoofed browser User-Agent, to avoid being rejected by justETF
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-# 取得動態counter用的搜尋頁網址
+# Search page URL used to obtain the dynamic counter
 SEARCH_PAGE_URL = "https://www.justetf.com/en/search.html?search=ETFS"
 
-# 從搜尋頁HTML中解析動態counter的正則表達式
+# Regex pattern to parse the dynamic counter out of the search page HTML
 COUNTER_PATTERN = r"(\d+)-1\.0-container-tabsContentContainer-tabsContentRepeater-1-container-content-etfsTablePanel&search=ETFS&_wicket=1"
 
-# POST請求固定的payload
+# Fixed payload for the POST request
 POST_PAYLOAD = {
     "draw": 1,
     "start": 0,
@@ -24,15 +24,15 @@ POST_PAYLOAD = {
     "defaultCurrency": "EUR",
 }
 
-# 名稱必須排除的關鍵字（槓桿、放空、反向ETF）
+# Keywords that must be excluded from the name (leveraged, short, inverse ETFs)
 EXCLUDED_NAME_KEYWORDS = ("LEVERAGED", "SHORT", "INVERSE", "2X", "3X", "-2", "-3")
 
 
 def get_de_etf_symbols() -> list[str]:
-    """回傳德國Xetra交易所所有ETF代碼的清單（yfinance使用的.DE後綴格式）。"""
+    """Return the list of all ETF symbols on the German Xetra exchange (in the .DE suffix format used by yfinance)."""
     session = requests.Session()
 
-    # 第一步：對justETF發送GET請求，取得動態counter
+    # Step 1: send a GET request to justETF to obtain the dynamic counter
     try:
         get_response = session.get(SEARCH_PAGE_URL, headers=HEADERS, timeout=30)
         get_response.raise_for_status()
@@ -47,7 +47,7 @@ def get_de_etf_symbols() -> list[str]:
         counter = "0"
         print("Warning: could not parse justETF dynamic counter, falling back to default value 0")
 
-    # 第二步：用counter組出POST網址，取得完整ETF清單
+    # Step 2: build the POST URL using the counter to fetch the full ETF list
     post_url = (
         f"https://www.justetf.com/en/search.html?{counter}"
         "-1.0-container-tabsContentContainer-tabsContentRepeater-1-container-content-etfsTablePanel"
@@ -72,15 +72,15 @@ def get_de_etf_symbols() -> list[str]:
 
         name_upper = name.upper()
 
-        # 名稱必須包含"ETF"字樣才保留
+        # The name must contain "ETF" to be kept
         if "ETF" not in name_upper:
             continue
 
-        # 排除槓桿、放空、反向ETF
+        # Exclude leveraged, short, and inverse ETFs
         if any(keyword in name_upper for keyword in EXCLUDED_NAME_KEYWORDS):
             continue
 
         symbols.append(f"{ticker}.DE")
 
-    # 去除重複，同時保留原始順序
+    # Remove duplicates while preserving original order
     return list(dict.fromkeys(symbols))

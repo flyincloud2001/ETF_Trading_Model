@@ -1,4 +1,4 @@
-# 這份檔案用來抓取新加坡SGX交易所所有ETF代碼
+# This file fetches all Singapore SGX exchange ETF symbols
 
 import time
 
@@ -6,24 +6,24 @@ import pandas as pd
 import requests
 import yfinance as yf
 
-# Wikipedia上新加坡SGX ETF清單頁面網址
+# Wikipedia page URL listing Singapore SGX ETFs
 SGX_ETF_WIKI_URL = "https://en.wikipedia.org/wiki/List_of_Singapore_exchange-traded_funds"
 
-# 偽裝瀏覽器的User-Agent，避免被拒絕
+# Spoofed browser User-Agent, to avoid being rejected
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
-# 名稱必須排除的關鍵字（反向、放空、槓桿ETF）
+# Keywords that must be excluded from the name (inverse, short, leveraged ETFs)
 EXCLUDED_NAME_KEYWORDS = ("INVERSE", "BEAR", "SHORT", "LEVERAGED", "2X", "3X")
 
-# 可能包含ticker代碼的欄位名稱關鍵字
+# Column name keywords that may indicate a ticker code column
 TICKER_COLUMN_KEYWORDS = ("SYMBOL", "TICKER", "CODE", "SGX")
 
-# 每次用yfinance驗證代碼之間的等待秒數
+# Wait time in seconds between each yfinance symbol verification
 VERIFY_DELAY_SECONDS = 0.3
 
 
 def get_sg_etf_symbols() -> list[str]:
-    """回傳新加坡SGX交易所所有ETF代碼的清單（yfinance使用的.SI後綴格式）。"""
+    """Return the list of all ETF symbols on the Singapore SGX exchange (in the .SI suffix format used by yfinance)."""
     try:
         response = requests.get(SGX_ETF_WIKI_URL, headers=HEADERS, timeout=30)
         response.raise_for_status()
@@ -32,7 +32,7 @@ def get_sg_etf_symbols() -> list[str]:
 
         candidate_symbols = []
         for table in tables:
-            # 印出所有找到的表格欄位名稱以便除錯
+            # Print all found table column names for debugging
             print(f"Found table columns: {list(table.columns)}")
 
             ticker_column = next(
@@ -47,7 +47,7 @@ def get_sg_etf_symbols() -> list[str]:
             if ticker_column is None:
                 continue
 
-            # 嘗試找出名稱欄位，用來過濾反向、放空、槓桿ETF
+            # Try to locate the name column, to filter out inverse, short, and leveraged ETFs
             name_column = next((col for col in table.columns if "NAME" in str(col).upper()), None)
 
             for _, row in table.iterrows():
@@ -70,7 +70,7 @@ def get_sg_etf_symbols() -> list[str]:
 
                 candidate_symbols.append(f"{ticker}.SI")
 
-        # 用yfinance逐一驗證代碼是否有效，驗證失敗或資料為空的代碼直接跳過
+        # Verify each ticker individually with yfinance; skip any ticker that fails verification or returns empty data
         symbols = []
         for symbol in candidate_symbols:
             try:
@@ -82,7 +82,7 @@ def get_sg_etf_symbols() -> list[str]:
 
             time.sleep(VERIFY_DELAY_SECONDS)
 
-        # 去除重複，同時保留原始順序
+        # Remove duplicates while preserving original order
         return list(dict.fromkeys(symbols))
     except Exception as e:
         print(f"Error: exception while fetching Singapore ETF symbols ({e})")
